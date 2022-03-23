@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>여러개 마커에 이벤트 등록하기2</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+      }
+      .container {
+        width: 100%;
+        height: 100%;
+      }
+      .customoverlay {position:relative;border-radius:6px;border: 1px solid #ccc;border-bottom:2px solid #ddd;float:left;}
+      .customoverlay:nth-of-type(n) {border:0; box-shadow:0px 1px 2px #888;}
+      .customoverlay a {display:block;text-decoration:none;color:#000;text-align:center;border-radius:6px;font-size:14px;font-weight:bold;overflow:hidden;background: #d95050;background: #d95050 url(https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/arrow_white.png) no-repeat right 14px center;}
+      .customoverlay .title1 {display:block;text-align:center;background:#fff;padding:5px 30px;font-size:14px;font-weight:bold;}
+      .customoverlay .title2 {display:block;text-align:center;background:rgb(126, 143, 190);padding:5px 30px;font-size:14px;font-weight:bold;}
+      .customoverlay:after {content:'';position:absolute;margin-left:-12px;left:50%;bottom:-12px;width:22px;height:12px;background:url('https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/vertex_white.png')}
+    </style>
+</head>
+<body>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-storage.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBsYlI4RsHi6jR5DOSeD5WTwDXqqXhhxP0",
+      authDomain: "cstone-3dc2f.firebaseapp.com",
+      databaseURL: "https://cstone-3dc2f-default-rtdb.firebaseio.com",
+      projectId: "cstone-3dc2f",
+      storageBucket: "cstone-3dc2f.appspot.com",
+      messagingSenderId: "1088095057592",
+      appId: "1:1088095057592:web:b01119cd7a31c6bc3b664d",
+      measurementId: "G-LBGTN0FTR7"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
+  
+  <div class="container" id="map"></div>
+
+  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=a1c356dafa15cfdde0ee381e29b49837"></script>
+  <script>
+    const db = firebase.firestore(); //firestore() 불러오기
+    
+    async function asyncFunc(){
+        var docRef = db.collection('test').get().then(결과 => {
+            var positions = [];
+            결과.forEach(doc => {
+            positions.push(
+                {
+                content: '<div class="customoverlay">'+
+                    '<span class="title1">'+
+                        doc.data().name+
+                        '</span>'+
+                        '<span class="title1">'+
+                        doc.data().스키가격+
+                        '</span>'+
+                        '</div>',
+                latlng : new kakao.maps.LatLng(doc.data().경도, doc.data().위도)
+                })
+            console.log(positions)
+            })
+            return positions;
+        });
+    
+        var positions = await docRef; //위치 정보를 담는 변수 생성
+        var selectedMarker = null;    // 클릭한 마커를 담을 변수
+
+        var mapContainer = document.getElementById('map'); // 지도를 표시할 div
+        var mapOption = { 
+            center: new kakao.maps.LatLng(33.450701, 126.570667), // 지도의 중심좌표
+            level: 3 // 지도의 확대 레벨
+        };
+        
+        var map = new kakao.maps.Map(mapContainer, mapOption); // 지도를 생성합니다
+        console.log("1"+map)
+        for (var i = 0; i < positions.length; i ++) {
+            //커스텀 오버레이 엘리먼트에 컨텐츠 추가
+            var normal_content = document.createElement('div'+i);
+            var click_content = document.createElement('div'+i);
+            normal_content.innerHTML = positions[i].content;
+            click_content.innerHTML = positions[i].content.replaceAll('title1', 'title2');
+            // 마커를 생성합니다
+            var normalOrigin = normal_content,
+                clickOrigin = click_content;
+                
+            // 마커를 생성하고 지도위에 표시합니다
+            addOverlay(map, positions[i].latlng, normalOrigin, clickOrigin)
+        }
+    
+        // 마커를 생성하고 지도 위에 표시하고, 마커에 mouseover, mouseout, click 이벤트를 등록하는 함수입니다
+        function addOverlay(map, position, normalOrigin, clickOrigin) {
+            console.log("2"+map)
+            console.log("3"+position)
+            // 마커를 생성하고 이미지는 기본 마커 이미지를 사용합니다
+            var customOverlay = new kakao.maps.CustomOverlay({
+                map: map,
+                position: position,
+                content: normalOrigin,
+                yAnchor: 1
+            });
+            
+            // 마커 객체에 마커아이디와 마커의 기본 이미지를 추가합니다
+            customOverlay.normalOrigin = normalOrigin;
+
+            var startX, startY, startOverlayPoint;
+
+            // 커스텀 오버레이에 mouseClick이벤트를 등록합니다 
+            addEventHandle(normalOrigin, 'mousedown', onMouseClick);
+
+            function onMouseClick(e) {
+                // 커스텀 오버레이를 드래그 할 때, 내부 텍스트가 영역 선택되는 현상을 막아줍니다.
+                if (e.preventDefault) {
+                    e.preventDefault();
+                } else {
+                    e.returnValue = false;
+                }
+                
+                // 클릭된 마커가 없고, click 마커가 클릭된 마커가 아니면
+                // 마커의 이미지를 클릭 이미지로 변경합니다
+                if (!selectedMarker || selectedMarker !== customOverlay) {
+                    
+                    // 클릭된 마커 객체가 null이 아니면
+                    // 클릭된 마커의 이미지를 기본 이미지로 변경하고
+                    !!selectedMarker && selectedMarker.setContent(selectedMarker.normalOrigin);
+                    
+                    // 현재 클릭된 마커의 이미지는 클릭 이미지로 변경합니다
+                    customOverlay.setContent(clickOrigin);
+                }
+
+                // 클릭된 마커를 현재 클릭된 마커 객체로 설정합니다
+                selectedMarker = customOverlay;
+            }
+
+            // target node에 이벤트 핸들러를 등록하는 함수힙니다  
+            function addEventHandle(target, type, callback) {
+                if (target.addEventListener) {
+                    target.addEventListener(type, callback);
+                } else {
+                    target.attachEvent('on' + type, callback);
+                }
+            }
+
+            // target node에 등록된 이벤트 핸들러를 제거하는 함수힙니다 
+            function removeEventHandle(target, type, callback) {
+                if (target.removeEventListener) {
+                    target.removeEventListener(type, callback);
+                } else {
+                    target.detachEvent('on' + type, callback);
+                }
+            }
+        }
+    }
+
+   asyncFunc();
+
+   </script>  
+</body>
+</html>
